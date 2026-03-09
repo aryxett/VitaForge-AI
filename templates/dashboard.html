@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VitaForge AI — Optimization Dashboard</title>
+    <meta name="description"
+        content="Resume analysis results - ATS score, skills breakdown, and improvement suggestions.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/auth.css">
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+</head>
+
+<body class="dashboard-body">
+    <!-- Animated background -->
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <a href="/" class="logo" style="text-decoration:none;">
+            <div class="logo-icon">
+                <img src="/static/app_logo.png" alt="VitaForge AI Logo" width="48" height="48">
+            </div>
+            <span class="logo-text">VitaForge AI</span>
+        </a>
+        <div class="header-user">
+            <a href="/" class="btn-new-analysis">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                New Analysis
+            </a>
+            <div class="user-greeting">
+                <div class="user-avatar">{{ current_user.name[0]|upper }}</div>
+                <span class="user-name">{{ current_user.name }}</span>
+            </div>
+            <a href="/logout" class="btn-logout">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Logout
+            </a>
+        </div>
+    </header>
+
+    <!-- Dashboard Layout -->
+    <div class="dashboard-container">
+
+        <!-- Loading State -->
+        <div id="loadingState" class="loading-state" style="display: none;">
+            <div class="loading-spinner-lg"></div>
+            <h2>Analyzing your resume...</h2>
+            <p>Our AI is parsing your document and generating insights</p>
+        </div>
+
+        <!-- Dashboard Layout Grid (Sidebar + Content) -->
+        <main class="dashboard-layout fade-in" id="dashboardMain" style="display: none;">
+
+            <!-- Sidebar Navigation -->
+            <aside class="dashboard-nav glass-card">
+                <div class="nav-user-header">
+                    <div class="nav-avatar">{{ current_user.name[0]|upper }}</div>
+                    <div class="nav-name" id="navCandidateName">Parsing...</div>
+                    <div class="nav-role" id="navCandidateRole">Target Role</div>
+                </div>
+
+                <ul class="nav-list" id="dashboardTabs">
+                    <li class="nav-item active" data-target="tab-overview">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="14" width="7" height="7"></rect>
+                            <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                        Overview
+                    </li>
+                    <li class="nav-item" data-target="tab-resume">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        Extracted Data
+                    </li>
+                    <li class="nav-item" data-target="tab-ats">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        ATS Analysis
+                    </li>
+                    <li class="nav-item" data-target="tab-jobmatch" id="navJobMatch" style="display: none;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                            <path
+                                d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                            </path>
+                        </svg>
+                        Job Match
+                    </li>
+                    <li class="nav-item" data-target="tab-improvements">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Improvements
+                    </li>
+                    <li class="nav-item" data-target="tab-insights">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 2v20M2 12h20M5.4 5.4l13.2 13.2M5.4 18.6L18.6 5.4"></path>
+                        </svg>
+                        Career Insights
+                    </li>
+                    <li class="nav-item" data-target="tab-ai-rewrite">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                        AI Resume Rewrite
+                    </li>
+
+                    <li class="nav-item" data-target="tab-careers">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                        </svg>
+                        Career Opportunities
+                    </li>
+                </ul>
+            </aside>
+
+            <!-- Main Content Area -->
+            <section class="dashboard-content" id="resultsContainer">
+
+                <!-- Top Bar -->
+                <div class="dash-topbar">
+                    <div>
+                        <h1 class="dash-title">Analysis Results</h1>
+                        <p class="dash-subtitle" id="dashSubtitle"></p>
+                    </div>
+                    <div class="dash-actions">
+                        <button class="btn-secondary" id="downloadReportBtn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4M7 10l5 5 5-5M12 15V3" />
+                            </svg>
+                            Download Report
+                        </button>
+                        <a href="/" class="btn-primary">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M12 5v14M5 12h14" />
+                            </svg>
+                            New Analysis
+                        </a>
+                    </div>
+                </div>
+
+                <!-- ════ TAB: OVERVIEW ════ -->
+                <div id="tab-overview" class="tab-pane active fade-in">
+                    <!-- Visual Dashboard Summary -->
+                    <div class="visual-dashboard glass-card">
+                        <h2 class="card-title">Intelligent Performance Overview</h2>
+                        <div class="visual-grid">
+                            <div class="visual-item">
+                                <div class="visual-label">Resume Score</div>
+                                <div class="progress-container">
+                                    <div class="progress-bar" id="resumeScoreBar"></div>
+                                </div>
+                                <div class="visual-value" id="resumeScoreVal">0%</div>
+                            </div>
+                            <div class="visual-item">
+                                <div class="visual-label">Job Match Score</div>
+                                <div class="progress-container">
+                                    <div class="progress-bar" id="jobMatchBar"></div>
+                                </div>
+                                <div class="visual-value" id="jobMatchVal">0%</div>
+                            </div>
+                            <div class="visual-item">
+                                <div class="visual-label">Skill Match Progress</div>
+                                <div class="progress-container">
+                                    <div class="progress-bar" id="skillGapBar"></div>
+                                </div>
+                                <div class="visual-value" id="skillGapVal">0%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Strengths / Weaknesses -->
+                    <div class="sw-row">
+                        <div class="glass-card sw-card">
+                            <h2 class="card-title strengths-title">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00e676"
+                                    stroke-width="2">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                    <polyline points="22 4 12 14.01 9 11.01" />
+                                </svg>
+                                Strengths
+                            </h2>
+                            <div id="strengthsList" class="sw-list"></div>
+                        </div>
+                        <div class="glass-card sw-card">
+                            <h2 class="card-title weaknesses-title">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff5252"
+                                    stroke-width="2">
+                                    <path
+                                        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                    <line x1="12" y1="9" x2="12" y2="13" />
+                                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                                </svg>
+                                Weaknesses
+                            </h2>
+                            <div id="weaknessesList" class="sw-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB: EXTRACTED DATA ════ -->
+                <div id="tab-resume" class="tab-pane fade-in">
+                    <div class="glass-card">
+                        <h2 class="card-title">Extracted Identity</h2>
+                        <div class="extracted-contact" id="extractedContact">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <div class="glass-card" style="margin-top: 20px;">
+                        <h2 class="card-title">Parsed Sections</h2>
+                        <div id="extractedSections" class="extracted-sections-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB: ATS ANALYSIS ════ -->
+                <div id="tab-ats" class="tab-pane fade-in">
+                    <div class="score-row" style="grid-template-columns: 280px 1fr;">
+                        <!-- ATS Score Circle -->
+                        <div class="score-card glass-card">
+                            <h2 class="card-title">ATS Score</h2>
+                            <div class="score-circle-wrap">
+                                <svg class="score-circle" viewBox="0 0 200 200">
+                                    <circle class="score-bg" cx="100" cy="100" r="85" />
+                                    <circle class="score-fill" id="scoreFill" cx="100" cy="100" r="85" />
+                                </svg>
+                                <div class="score-value">
+                                    <span class="score-number" id="scoreNumber">0</span>
+                                    <span class="score-label">/ 100</span>
+                                </div>
+                            </div>
+                            <div class="score-grade" id="scoreGrade"></div>
+                        </div>
+
+                        <!-- Section Strength Analysis -->
+                        <div class="breakdown-card glass-card">
+                            <h2 class="card-title">Section Strength Analysis</h2>
+                            <div id="sectionStrengthBars" class="breakdown-bars">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card" style="margin-top: 20px;">
+                        <h2 class="card-title">Formatting Deep Dive</h2>
+                        <ul class="formatting-list" id="formattingList">
+                            <!-- Populated by JS -->
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- ════ TAB: JOB MATCH ════ -->
+                <div id="tab-jobmatch" class="tab-pane fade-in">
+                    <div class="jd-card glass-card" id="jdCard">
+                        <h2 class="card-title">Job Match Analysis</h2>
+                        <div class="jd-circle-wrap">
+                            <svg class="jd-circle" viewBox="0 0 160 160">
+                                <circle class="jd-bg" cx="80" cy="80" r="65" />
+                                <circle class="jd-fill" id="jdFill" cx="80" cy="80" r="65" />
+                            </svg>
+                            <div class="jd-value">
+                                <span class="jd-number" id="jdNumber">0</span>
+                                <span class="jd-percent">%</span>
+                            </div>
+                        </div>
+                        <p class="jd-detail" id="jdDetail"></p>
+                    </div>
+
+                    <div class="skills-row" style="margin-top: 20px;">
+                        <div class="skills-card glass-card" id="jdMatchedKeywordsRow">
+                            <h2 class="card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="#00e676" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg> Skills found in both</h2>
+                            <div class="skills-grid" id="jdMatchedKeywords"></div>
+                        </div>
+                        <div class="skills-card glass-card" id="jdKeywordsRow">
+                            <h2 class="card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="#ffa726" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                </svg> Missing JD Keywords</h2>
+                            <div class="skills-grid" id="jdMissingKeywords"></div>
+                        </div>
+                    </div>
+
+                    <div class="skills-row" style="margin-top: 20px;">
+                        <div class="skills-card glass-card" id="jdTechKeywordsRow">
+                            <h2 class="card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="#ef5350" stroke-width="2">
+                                    <path
+                                        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                </svg> Missing Technical Skills</h2>
+                            <div class="skills-grid" id="jdMissingTech"></div>
+                        </div>
+                        <div class="skills-card glass-card" id="jdSuggestionsCard">
+                            <h2 class="card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="#bb86fc" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="16" x2="12" y2="12" />
+                                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                                </svg> Match Improvement Suggestions</h2>
+                            <ul id="jdSuggestionsList" class="sw-list" style="margin-top: 15px;"></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB: IMPROVEMENTS ════ -->
+                <div id="tab-improvements" class="tab-pane fade-in">
+                    <div class="glass-card">
+                        <h2 class="card-title">Bullet Point Optimizer</h2>
+                        <p class="section-desc">We identified weak or passive bullet points in your resume. Here are
+                            AI-generated improvements using strong action verbs and impact formatting.</p>
+                        <div id="bulletRewritesList" class="sw-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <div class="glass-card" style="margin-top: 20px;">
+                        <h2 class="card-title">Keyword Inclusion Examples</h2>
+                        <p class="section-desc">Not sure how to add your missing skills? Here are contextual examples.
+                        </p>
+                        <div id="keywordExamplesList" class="sw-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB: CAREER INSIGHTS ════ -->
+                <div id="tab-insights" class="tab-pane fade-in">
+                    <!-- Skill Gap Roadmap -->
+                    <div class="roadmap-card glass-card">
+                        <h2 class="card-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffa726"
+                                stroke-width="2">
+                                <path d="M12 2v20M2 12h20M5.4 5.4l13.2 13.2M5.4 18.6L18.6 5.4" />
+                            </svg>
+                            Skill Gap Roadmap
+                        </h2>
+                        <div class="roadmap-container" id="roadmapContainer"></div>
+                    </div>
+
+                    <!-- AI Interview Preparation -->
+                    <div class="interview-card glass-card" style="margin-top: 20px;">
+                        <h2 class="card-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00e676"
+                                stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            </svg>
+                            Interview Preparation Questions
+                        </h2>
+                        <div class="interview-tabs">
+                            <button class="tab-btn active" data-tab="technical">Technical</button>
+                            <button class="tab-btn" data-tab="projects">Project-Based</button>
+                            <button class="tab-btn" data-tab="behavioral">Behavioral</button>
+                        </div>
+                        <div class="interview-content" id="interviewContent"></div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB: AI RESUME REWRITE ════ -->
+                <div id="tab-ai-rewrite" class="tab-pane fade-in">
+                    <div class="glass-card">
+                        <h2 class="card-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#bb86fc"
+                                stroke-width="2">
+                                <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                            </svg>
+                            AI Resume Improvements
+                        </h2>
+                        <p class="section-desc">Our AI detected weak or generic sentences in your resume and rewrote
+                            them using strong action verbs, measurable achievements, and professional language.</p>
+                        <div id="aiRewritesList" class="ai-rewrites-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <!-- ════ TAB: CAREER OPPORTUNITIES ════ -->
+                <div id="tab-careers" class="tab-pane fade-in">
+                    <div class="glass-card">
+                        <h2 class="card-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00e676"
+                                stroke-width="2">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                            </svg>
+                            Recommended Career Opportunities
+                        </h2>
+                        <p class="section-desc">Based on your skills, experience, and projects, here are the roles best
+                            suited for you.</p>
+                        <div id="jobRecommendations" class="job-recommendations-grid">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+    </div>
+
+    <!-- Chat Widget -->
+    <div id="chatWidget" class="chat-widget">
+        <button id="chatToggle" class="chat-toggle btn-primary">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+        </button>
+
+        <div id="chatWindow" class="chat-window glass-card" style="display: none;">
+            <div class="chat-header">
+                <h3>AI Assistant</h3>
+                <button id="chatClose" class="chat-close">&times;</button>
+            </div>
+            <div id="chatMessages" class="chat-messages">
+                <div class="chat-msg ai-msg">
+                    Hi! I'm your AI Resume Assistant. I've analyzed your resume and can answer questions like:
+                    <ul>
+                        <li>How can I improve my resume?</li>
+                        <li>What skills am I missing?</li>
+                        <li>Which projects should I add?</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="chat-quick-actions" id="chatQuickActions">
+                <button class="quick-action-btn" data-query="How can I improve my resume?">Improve Resume</button>
+                <button class="quick-action-btn" data-query="What skills am I missing?">Show Skill Gap</button>
+                <button class="quick-action-btn" data-query="Am I ready for interviews?">Interview Prep</button>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="Ask about your resume..." autocomplete="off">
+                <button id="chatSend" class="btn-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+
+</html>
