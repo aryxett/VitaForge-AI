@@ -33,5 +33,4 @@ Follow these steps to start the application:
 - **30+ Job Roles**: Specialized analysis for various tech and creative roles.
 - **Custom Role Support**: Intelligent analysis for any job title you specify.
 
----
-*Created with ❤️ by Antigravity*
+
