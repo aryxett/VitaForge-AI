@@ -2344,3 +2344,506 @@ body {
     padding: 40px 20px;
     font-size: 1rem;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* ─── BUNNY AI COMPANION ─────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Keyframe Animations ─────────────────────────────────────────────────── */
+
+@keyframes bunnyBreathe {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+}
+
+@keyframes bunnyHop {
+    0%   { transform: translateY(0); }
+    30%  { transform: translateY(-6px); }
+    60%  { transform: translateY(0); }
+    80%  { transform: translateY(-2px); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes bunnyBlink {
+    0%, 40%  { ry: 3; }
+    45%      { ry: 0.5; }
+    50%      { ry: 3; }
+    85%      { ry: 3; }
+    90%      { ry: 0.5; }
+    95%      { ry: 3; }
+    100%     { ry: 3; }
+}
+
+@keyframes slideInUp {
+    from { opacity: 0; transform: translateY(30px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes slideOutDown {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(30px) scale(0.95); }
+}
+
+@keyframes msgSlideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dotBounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40%           { transform: translateY(-6px); }
+}
+
+@keyframes launcherBounce {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+}
+
+@keyframes sendPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(124, 77, 255, 0.4); }
+    70%  { box-shadow: 0 0 0 10px rgba(124, 77, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(124, 77, 255, 0); }
+}
+
+@keyframes inputGlow {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(124, 77, 255, 0.15); }
+    50%      { box-shadow: 0 0 0 4px rgba(124, 77, 255, 0.25); }
+}
+
+/* ─── Floating Bunny Launcher ─────────────────────────────────────────────── */
+
+.bunny-launcher {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 22px;
+    background: linear-gradient(135deg, #7c4dff, #bb86fc);
+    border: none;
+    border-radius: 50px;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 8px 30px rgba(124, 77, 255, 0.35), 0 0 0 0 rgba(124, 77, 255, 0);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: launcherBounce 3s ease-in-out infinite;
+}
+
+.bunny-launcher:hover {
+    transform: translateY(-3px) scale(1.04);
+    box-shadow: 0 12px 40px rgba(124, 77, 255, 0.5);
+    animation: none;
+}
+
+.bunny-launcher:active {
+    transform: scale(0.97);
+}
+
+.bunny-launcher-icon {
+    font-size: 1.4rem;
+}
+
+.bunny-launcher.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(20px) scale(0.8);
+}
+
+/* ─── Chat Panel ──────────────────────────────────────────────────────────── */
+
+.bunny-panel {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 9999;
+    width: 400px;
+    max-height: 600px;
+    display: none;
+    flex-direction: column;
+    background: rgba(18, 18, 30, 0.92);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(187, 134, 252, 0.25);
+    border-radius: 20px;
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(187, 134, 252, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+}
+
+.bunny-panel.open {
+    display: flex;
+    animation: slideInUp 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.bunny-panel.closing {
+    animation: slideOutDown 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────────── */
+
+.bunny-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px;
+    background: linear-gradient(135deg, rgba(124, 77, 255, 0.15), rgba(187, 134, 252, 0.08));
+    border-bottom: 1px solid rgba(187, 134, 252, 0.15);
+}
+
+.bunny-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.bunny-avatar-wrap {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    animation: bunnyBreathe 3s ease-in-out infinite;
+}
+
+.bunny-avatar-wrap.hop {
+    animation: bunnyHop 0.5s ease forwards;
+}
+
+.bunny-avatar-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.bunny-eye {
+    transition: ry 0.15s;
+}
+
+.bunny-avatar-wrap.blink .bunny-eye {
+    animation: bunnyBlink 2s ease forwards;
+}
+
+.bunny-header-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.bunny-header-status {
+    font-size: 0.72rem;
+    color: rgba(187, 134, 252, 0.8);
+    font-weight: 500;
+}
+
+.bunny-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 1.6rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    line-height: 1;
+}
+
+.bunny-close:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* ─── Messages Area ───────────────────────────────────────────────────────── */
+
+.bunny-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 320px;
+    min-height: 180px;
+    scroll-behavior: smooth;
+}
+
+.bunny-messages::-webkit-scrollbar {
+    width: 4px;
+}
+
+.bunny-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.bunny-messages::-webkit-scrollbar-thumb {
+    background: rgba(187, 134, 252, 0.25);
+    border-radius: 2px;
+}
+
+/* ─── Message Bubbles ─────────────────────────────────────────────────────── */
+
+.bunny-msg {
+    display: flex;
+    gap: 8px;
+    max-width: 90%;
+}
+
+.bunny-msg-enter {
+    animation: msgSlideUp 0.35s ease forwards;
+}
+
+.bunny-msg-ai {
+    align-self: flex-start;
+}
+
+.bunny-msg-user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.bunny-msg-avatar-mini {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    border-radius: 50%;
+    background: rgba(187, 134, 252, 0.12);
+    margin-top: 2px;
+}
+
+.bunny-msg-user .bunny-msg-avatar-mini {
+    background: rgba(124, 77, 255, 0.2);
+    font-size: 0.7rem;
+}
+
+.bunny-msg-bubble {
+    padding: 12px 16px;
+    border-radius: 16px;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    word-break: break-word;
+}
+
+.bunny-msg-ai .bunny-msg-bubble {
+    background: rgba(187, 134, 252, 0.1);
+    border: 1px solid rgba(187, 134, 252, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+    border-top-left-radius: 4px;
+}
+
+.bunny-msg-user .bunny-msg-bubble {
+    background: linear-gradient(135deg, rgba(124, 77, 255, 0.3), rgba(98, 0, 234, 0.35));
+    border: 1px solid rgba(124, 77, 255, 0.25);
+    color: #fff;
+    border-top-right-radius: 4px;
+}
+
+.bunny-msg-bubble strong {
+    color: #bb86fc;
+}
+
+.bunny-msg-bubble ul {
+    margin: 6px 0 0 0;
+    padding-left: 16px;
+}
+
+.bunny-msg-bubble li {
+    margin-bottom: 3px;
+    font-size: 0.82rem;
+}
+
+/* ─── Suggestion Chips ────────────────────────────────────────────────────── */
+
+.bunny-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 16px 10px;
+}
+
+.bunny-chip {
+    background: rgba(187, 134, 252, 0.08);
+    border: 1px solid rgba(187, 134, 252, 0.18);
+    color: rgba(255, 255, 255, 0.8);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.25s;
+    white-space: nowrap;
+}
+
+.bunny-chip:hover {
+    background: rgba(187, 134, 252, 0.18);
+    border-color: rgba(187, 134, 252, 0.4);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(187, 134, 252, 0.2);
+    transform: translateY(-1px);
+}
+
+.bunny-chip:active {
+    transform: scale(0.96);
+}
+
+/* ─── Typing Indicator ────────────────────────────────────────────────────── */
+
+.bunny-typing {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+}
+
+.bunny-typing-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: rgba(187, 134, 252, 0.7);
+    font-style: italic;
+}
+
+.bunny-dots {
+    display: flex;
+    gap: 3px;
+}
+
+.bunny-dot {
+    width: 5px;
+    height: 5px;
+    background: rgba(187, 134, 252, 0.6);
+    border-radius: 50%;
+    animation: dotBounce 1.2s ease-in-out infinite;
+}
+
+.bunny-dot:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.bunny-dot:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+/* ─── Input Area ──────────────────────────────────────────────────────────── */
+
+.bunny-input-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-top: 1px solid rgba(187, 134, 252, 0.1);
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.bunny-input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(187, 134, 252, 0.15);
+    border-radius: 12px;
+    padding: 10px 16px;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    outline: none;
+    transition: all 0.3s;
+}
+
+.bunny-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.bunny-input:focus {
+    border-color: rgba(187, 134, 252, 0.45);
+    animation: inputGlow 2s ease-in-out infinite;
+}
+
+.bunny-send {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #7c4dff, #bb86fc);
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.bunny-send:hover {
+    transform: scale(1.08);
+    animation: sendPulse 1.5s infinite;
+}
+
+.bunny-send:active {
+    transform: scale(0.93);
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+    .bunny-panel {
+        width: calc(100vw - 20px);
+        right: 10px;
+        bottom: 10px;
+        max-height: 80vh;
+    }
+
+    .bunny-launcher {
+        right: 14px;
+        bottom: 14px;
+        padding: 12px 18px;
+        font-size: 0.85rem;
+    }
+
+    .bunny-launcher-text {
+        display: none;
+    }
+
+    .bunny-launcher {
+        border-radius: 50%;
+        padding: 14px;
+    }
+}
+
+/* ─── Accessibility ───────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .bunny-avatar-wrap,
+    .bunny-launcher,
+    .bunny-dot,
+    .bunny-send:hover {
+        animation: none !important;
+    }
+
+    .bunny-panel.open {
+        animation: none;
+    }
+
+    .bunny-msg-enter {
+        animation: none;
+    }
+}
+
+.bunny-launcher:focus-visible,
+.bunny-chip:focus-visible,
+.bunny-send:focus-visible,
+.bunny-input:focus-visible,
+.bunny-close:focus-visible {
+    outline: 2px solid #bb86fc;
+    outline-offset: 2px;
+}

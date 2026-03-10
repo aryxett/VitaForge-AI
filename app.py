@@ -5,6 +5,7 @@ VitaForge AI — Optimization Backend
 import os
 import io
 import json
+import hashlib
 import tempfile
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template, send_file, redirect, url_for
@@ -13,7 +14,7 @@ from werkzeug.utils import secure_filename
 
 import pdfplumber
 from docx import Document
-from openai import OpenAI
+import google.generativeai as genai
 
 from models import db, User
 from analyzer import analyze_resume, get_available_roles
@@ -31,12 +32,22 @@ app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///users.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize OpenAI Client
-openai_client = None
-if os.getenv('OPENAI_API_KEY'):
-    openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-
+# Initialize Gemini Client
+gemini_configured = False
+gemini_api_key = os.getenv('GEMINI_API_KEY')
+print(f"DEBUG: GEMINI_API_KEY present: {bool(gemini_api_key)}")
+if gemini_api_key:
+    try:
+        genai.configure(api_key=gemini_api_key)
+        gemini_configured = True
+        print("DEBUG: Gemini SDK configured successfully.")
+    except Exception as e:
+        print(f"DEBUG: Gemini SDK configuration FAILED: {e}")
+        pass
 ALLOWED_EXTENSIONS = {'pdf', 'docx'}
+
+# ─── SHA256 Result Cache ──────────────────────────────────────────────────────
+_result_cache = {}
 
 # ─── Initialize Extensions ───────────────────────────────────────────────────
 db.init_app(app)
@@ -148,9 +159,20 @@ def upload_resume():
         if not text or len(text.strip()) < 50:
             return jsonify({"error": "Could not extract enough text from the file. Ensure it's not a scanned/image-based PDF."}), 400
 
+        # SHA256 cache: same resume + same role = identical results
+        cache_key = hashlib.sha256((text + job_role + custom_role).encode('utf-8')).hexdigest()
+        if cache_key in _result_cache:
+            cached = _result_cache[cache_key].copy()
+            cached['filename'] = filename
+            cached['cached'] = True
+            return jsonify(cached)
+
         # Run analysis
         results = analyze_resume(text, job_role, job_description, custom_role)
         results['filename'] = filename
+
+        # Store in cache
+        _result_cache[cache_key] = results.copy()
 
         return jsonify(results)
 
@@ -197,7 +219,8 @@ def chat():
     if not data or 'message' not in data:
         return jsonify({"error": "No message provided"}), 400
     
-    user_msg = data['message'].lower()
+    user_msg = data['message']
+    print(f"DEBUG: Incoming /api/chat message: {user_msg}")
     context = data.get('context', {})
     
     # Extract context data for smarter responses
@@ -212,102 +235,91 @@ def chat():
     interviews = context.get('interview_questions', {}).get('technical', [])
     jd_match = context.get('jd_match', {})
     
-    # Check if OpenAI is configured Let's use the API
-    if openai_client:
+    # Check if Gemini is configured
+    if gemini_configured:
         try:
-            # Build a system prompt that gives the AI the personality and the exact context
-            system_prompt = f"""You are an expert AI Career Mentor helping a candidate improve their resume and prepare for interviews.
-            Always be encouraging, professional, and highly specific to the data provided. Use Markdown for bolding and lists.
+            print(f"DEBUG: Gemini calling with prompt: {user_msg}")
+            # Build a powerful system prompt for Bunny
+            system_prompt = f"""You are Bunny 🐰, an intelligent, friendly, and highly capable AI Resume Companion.
             
-            CANDIDATE CONTEXT:
+            YOUR PERSONALITY:
+            - Friendly, supportive, and conversational.
+            - Feel like a real AI mentor, not a rigid bot.
+            - Use emojis thoughtfully but not excessively.
+            - Keep responses concise (2-3 paragraphs max) unless generating specific resume content.
+            
+            YOUR CAPABILITIES:
+            - Understand conversation context and memory.
+            - Handle short intents naturally. If the user says "yes", "sure", or "please", execute the action you previously suggested.
+            - If the user says "no" or "not now", acknowledge gracefully (e.g., "No problem! Let me know if you want to look at something else.")
+            - Proactively offer specific help based on their resume data.
+            - Do NOT repeat the exact same response or phrasing if the user asks a similar question.
+            
+            CANDIDATE'S RESUME CONTEXT:
             - Target Role: {role}
-            - Current ATS Score: {total_score}/100
+            - ATS Score: {total_score}/100
             - Key Strengths: {', '.join([s.get('title', '') for s in strengths[:3]])}
             - Weaknesses to Fix: {', '.join([w.get('title', '') for w in weaknesses[:3]])}
-            - Missing Skills: {', '.join(missing_skills[:10])}
-            - Known Skills: {', '.join(found_skills[:10])}
+            - Missing Skills: {', '.join(missing_skills[:10]) if missing_skills else 'None detected!'}
+            - Known Skills: {', '.join(found_skills[:15])}
             
-            When answering, directly reference their specific strengths, weaknesses, or missing skills if relevant to their question.
-            Keep responses concise (3-4 short paragraphs max). End by offering to help with a related specific task (e.g., "Would you like me to write a bullet point for one of your projects?").
+            INSTRUCTIONS FOR RESPONDING:
+            1. Integrate the candidate's actual resume data into your advice to make it deeply personalized.
+            2. If they ask to improve their resume, generate specific strong bullet points or suggest exactly where to add missing skills.
+            3. Always offer a clear next step or suggestion at the end of your response to keep the conversation dynamic.
             """
 
-            response = openai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_msg}
-                ],
-                temperature=0.7,
-                max_tokens=400
+            model = genai.GenerativeModel(
+                model_name="gemini-1.5-flash",
+                system_instruction=system_prompt,
+                generation_config=genai.GenerationConfig(
+                    temperature=0.4,
+                    top_p=0.9,
+                    max_output_tokens=500,
+                )
             )
+
+            # history from frontend already includes the current user message as the last item
+            history = data.get('history', [])
+            print(f"DEBUG: History length: {len(history)}")
             
-            ai_response = response.choices[0].message.content
+            gemini_history = []
+            for msg in history[-10:]:
+                if msg.get('content'):
+                    role_map = {'user': 'user', 'assistant': 'model'}
+                    g_role = role_map.get(msg.get('role'))
+                    if g_role:
+                        gemini_history.append({"role": g_role, "parts": [msg['content']]})
+
+            latest_user_message = user_msg
+            if gemini_history and gemini_history[-1]['role'] == 'user':
+                latest_user_message = gemini_history[-1]['parts'][0]
+                gemini_history = gemini_history[:-1]
+
+            print(f"DEBUG: gemini_history size: {len(gemini_history)}")
+            print(f"DEBUG: latest_user_message: {latest_user_message}")
+
+            chat_session = model.start_chat(history=gemini_history)
+            print("DEBUG: Sending message to Gemini...")
+            response = chat_session.send_message(latest_user_message)
+            
+            ai_response = response.text
+            print(f"DEBUG: Gemini successfully responded: {ai_response[:100]}...")
             return jsonify({"response": ai_response})
             
         except Exception as e:
-            # Fallback will trigger below if API fails
-            pass
+            error_str = str(e)
+            print(f"DEBUG ERROR in /api/chat: {error_str}")
+            if "quota" in error_str.lower():
+                return jsonify({
+                    "response": f"I'd love to chat more, but it looks like my AI API quota has been reached! 🐰\n\nI can still see your ATS score is **{total_score}**. Once the quota is updated, I'll be able to give you full AI advice again!"
+                })
+            return jsonify({"error": f"AI service temporarily unavailable. ({error_str})"}), 503
             
-            
-    # Fallback / Simulated Logic
-    response = ""
-    follow_up = ""
-
-    # State machine or specific question matching logic
-    if "improve" in user_msg or "how can i" in user_msg or "weakness" in user_msg:
-        if weaknesses:
-            response = f"Based on your current resume score of **{total_score}/100**, here are your priority areas for improvement:\n"
-            for w in weaknesses[:3]:
-                response += f"- **{w['title']}**: {w['detail']}\n"
-            follow_up = "\n\nWould you like me to generate stronger resume bullet points for you?"
-        else:
-            response = f"Your resume is already very strong with a score of **{total_score}/100**! However, you can always improve by adding more quantifiable results to your experience."
-            follow_up = "\n\nDo you want me to suggest specific metrics you could track for your projects?"
-            
-    elif "learn next" in user_msg or "what should i learn" in user_msg or "missing" in user_msg or "skill gap" in user_msg or "skills" in user_msg:
-        if missing_skills:
-            response = f"To become a top match for **{role}** roles, you should focus on these missing skills:\n**{', '.join(missing_skills[:5])}**.\n\n"
-            if roadmap:
-                response += f"According to your career roadmap, I suggest starting with:\n- **{roadmap[0]['title']}**: {roadmap[0]['detail']}"
-            follow_up = "\n\nWould you like me to suggest specific projects to help you learn these skills?"
-        else:
-            response = f"You already have a fantastic skill match for **{role}**! Your strongest skills include **{', '.join(found_skills[:5])}**."
-            follow_up = "\n\nWould you like me to generate some technical interview questions to test your knowledge?"
-            
-    elif "project" in user_msg or "add" in user_msg or "portfolio" in user_msg or "github" in user_msg:
-        if missing_skills:
-            response = f"A great way to strengthen your portfolio for **{role}** positions is to build projects utilizing your missing skills: **{', '.join(missing_skills[:3])}**.\n\n"
-            if roadmap and len(roadmap) > 0 and 'projects' in roadmap[0] and roadmap[0]['projects']:
-                response += f"For example, you could build: **{roadmap[0]['projects'][0]}**."
-            else:
-                response += "For example, you could build a full-stack application integrating these technologies and clearly document the architecture on GitHub."
-            follow_up = "\n\nDo you want help writing the project descriptions for your resume?"
-        else:
-             response = f"Your project section should highlight your mastery of **{', '.join(found_skills[:3])}**. Make sure each GitHub repo has a detailed README outlining the problem solved and the technologies used."
-             follow_up = "\n\nShould we review your current project bullet points to make them more impactful?"
-
-    elif "ready for interview" in user_msg or "interview" in user_msg or "prepare" in user_msg:
-        if total_score != 'N/A' and isinstance(total_score, (int, float)) and total_score >= 75:
-            response = f"With an ATS score of **{total_score}/100**, your resume is in great shape to start landing interviews! You should start preparing for technical rounds."
-            if interviews:
-                response += f"\n\nHere is a practice question for a **{role}**: \n*{interviews[0]}*"
-            follow_up = "\n\nWould you like more technical or behavioral practice questions?"
-        else:
-             response = f"Your resume score is currently **{total_score}/100**. I'd recommend improving your resume first to increase your chances of getting past the ATS."
-             if weaknesses:
-                 response += f"\nFocus on tackling: **{weaknesses[0]['title']}**."
-             follow_up = "\n\nWould you like to focus on improving your resume first, or jump into interview prep?"
-
-    elif "bullet" in user_msg or "description" in user_msg:
-         response = "Strong bullet points follow the 'Action + Context + Result' format. Make sure to lead with strong verbs like 'Engineered' or 'Architected', and always include quantifiable metrics (e.g., 'reduced latency by 20%')."
-         if context.get('bullet_rewrites') and len(context.get('bullet_rewrites')) > 0:
-             response += f"\n\nHere is an example from your resume:\n**Instead of:** {context['bullet_rewrites'][0]['original']}\n**Say:** {context['bullet_rewrites'][0]['improved']}"
-         follow_up = "\n\nShall I suggest more actionable verbs for your current role?"
-
-    else:
-        response = f"I'm your AI Career Mentor! I've analyzed your resume for the **{role}** profile and checked your current ATS score (**{total_score}/100**).\n\nYou can ask me things like:\n- How can I improve my resume?\n- Which skills am I missing?\n- What projects should I add?\n- Am I ready for interviews?"
-
-    return jsonify({"response": response + follow_up})
+    # Fallback if Gemini is not configured
+    return jsonify({
+        "response": f"I'm currently running in offline mode because my AI API key isn't configured. 🐰\n\nI can still tell you that your ATS score is **{total_score}** and you are targeting a **{role}** role. Connect my API to unlock full conversation capabilities!"
+    })
 
 
 if __name__ == '__main__':

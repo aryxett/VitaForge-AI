@@ -666,8 +666,13 @@ def analyze_resume(text, job_role="software_engineer", job_description="", custo
     job_recommendations = _recommend_jobs(found_skills, missing_skills, text_lower, role_data["title"])
     ai_rewrites = _ai_auto_rewrite(text, sections)
 
+    # Deterministic skill match score
+    total_role_skills = len(role_data["skills"])
+    skill_match_score = round((len(found_skills) / total_role_skills) * 100) if total_role_skills > 0 else 0
+
     result = {
         "ats_score": ats_score,
+        "skill_match_score": skill_match_score,
         "role": role_data["title"],
         "is_custom_role": is_custom,
         "word_count": word_count,
@@ -1072,60 +1077,81 @@ def _grammar_check(text, text_lower):
 
 
 def _calculate_ats_score(text, text_lower, words, sections_found, found_skills, missing_skills, role_data):
-    """Calculate ATS compatibility score out of 100."""
+    """Calculate ATS compatibility score out of 100 using a deterministic weighted formula.
+    
+    Weights:
+        Keyword Coverage:        40%
+        Section Presence:        20%
+        Formatting Quality:      20%
+        Action Verbs:            10%
+        Quantified Achievements: 10%
+    """
     score = 0
     breakdown = {}
 
-    # Section score (max 20)
-    section_score = min(len(sections_found) * 3, 20)
+    # ── 1. Keyword Coverage (max 40) ─────────────────────────────────────
+    total_role_skills = len(role_data.get("skills", []))
+    skill_ratio = len(found_skills) / total_role_skills if total_role_skills > 0 else 0
+    keyword_score = round(skill_ratio * 40)
+    keyword_score = min(keyword_score, 40)
+    score += keyword_score
+    breakdown["keywords"] = {"score": keyword_score, "max": 40, "label": "Keyword Coverage"}
+
+    # ── 2. Section Presence (max 20) ─────────────────────────────────────
+    core_sections = {"skills", "experience", "education", "projects"}
+    sections_lower = {s.lower() for s in sections_found}
+    matched_sections = core_sections & sections_lower
+    section_score = len(matched_sections) * 5  # 5 pts each
+    section_score = min(section_score, 20)
     score += section_score
-    breakdown["sections"] = {"score": section_score, "max": 20, "label": "Resume Sections"}
+    breakdown["sections"] = {"score": section_score, "max": 20, "label": "Section Presence"}
 
-    # Skills match (max 30)
-    total_skills = len(found_skills) + len(missing_skills)
-    skill_ratio = len(found_skills) / total_skills if total_skills > 0 else 0
-    skill_score = round(skill_ratio * 30)
-    score += skill_score
-    breakdown["skills"] = {"score": skill_score, "max": 30, "label": "Skill Keywords"}
-
-    # Action verbs & impact (max 15)
-    used_verbs = [v for v in ACTION_VERBS if v in text_lower]
-    verb_score = min(len(used_verbs) * 2, 15)
-    score += verb_score
-    breakdown["impact"] = {"score": verb_score, "max": 15, "label": "Impact & Action Verbs"}
-
-    # Formatting & structure (max 15)
+    # ── 3. Formatting Quality (max 20) ───────────────────────────────────
     format_score = 0
-    if re.search(r'[\w.-]+@[\w.-]+\.\w+', text): format_score += 3  # email
-    if re.search(r'[\+]?[\d\s\-\(\)]{10,}', text): format_score += 3  # phone
-    if 'linkedin' in text_lower: format_score += 3  # linkedin
-    if re.search(r'•|–|—|►|▪|■|-\s', text): format_score += 3  # bullets
-    numbers = re.findall(r'\d+[%+]|\$[\d,]+', text)
-    if len(numbers) >= 2: format_score += 3  # metrics
-    format_score = min(format_score, 15)
+    # Bullet points (5 pts)
+    bullet_count = len(re.findall(r'[•\-\–\—\*►▪■]', text))
+    if bullet_count >= 5:
+        format_score += 5
+    elif bullet_count >= 2:
+        format_score += 3
+
+    # Proper section headers (5 pts)
+    header_count = len(re.findall(r'^[A-Z][A-Za-z\s&\/]+:?\s*$', text, re.MULTILINE))
+    if header_count >= 3:
+        format_score += 5
+    elif header_count >= 1:
+        format_score += 3
+
+    # Paragraph length — no dense blocks (5 pts)
+    blocks = text.split('\n\n')
+    long_blocks = sum(1 for b in blocks if len(b.split()) > 40 and not re.search(r'[•\-\–\—\*]', b))
+    if long_blocks == 0:
+        format_score += 5
+    elif long_blocks <= 2:
+        format_score += 3
+
+    # Contact info present (5 pts)
+    contact_pts = 0
+    if re.search(r'[\w.-]+@[\w.-]+\.\w+', text): contact_pts += 2  # email
+    if re.search(r'[\+]?[\d\s\-\(\)]{10,}', text): contact_pts += 2  # phone
+    if 'linkedin' in text_lower: contact_pts += 1  # linkedin
+    format_score += min(contact_pts, 5)
+
+    format_score = min(format_score, 20)
     score += format_score
-    breakdown["formatting"] = {"score": format_score, "max": 15, "label": "Formatting & Contact"}
+    breakdown["formatting"] = {"score": format_score, "max": 20, "label": "Formatting Quality"}
 
-    # Length & readability (max 10)
-    word_count = len(words)
-    if 300 <= word_count <= 900:
-        length_score = 10
-    elif 200 <= word_count < 300 or 900 < word_count <= 1200:
-        length_score = 6
-    elif 100 <= word_count < 200:
-        length_score = 3
-    else:
-        length_score = 1
-    score += length_score
-    breakdown["length"] = {"score": length_score, "max": 10, "label": "Length & Readability"}
+    # ── 4. Action Verbs (max 10) ─────────────────────────────────────────
+    used_verbs = [v for v in ACTION_VERBS if v in text_lower]
+    verb_score = min(len(used_verbs), 10)
+    score += verb_score
+    breakdown["action_verbs"] = {"score": verb_score, "max": 10, "label": "Action Verbs"}
 
-    # Penalties
-    fillers_found = [f for f in FILLER_WORDS if f in text_lower]
-    cliches_found = [w for w in WEAK_PHRASES if w in text_lower]
-    penalty = len(fillers_found) * 2 + len(cliches_found) * 1
-    penalty = min(penalty, 10)
-    score -= penalty
-    breakdown["penalties"] = {"score": -penalty, "max": 0, "label": "Penalties (Weak Phrases)"}
+    # ── 5. Quantified Achievements (max 10) ──────────────────────────────
+    numbers = re.findall(r'\d+[%+]|\$[\d,]+|\d+x\b', text)
+    achievement_score = min(len(numbers) * 2, 10)
+    score += achievement_score
+    breakdown["achievements"] = {"score": achievement_score, "max": 10, "label": "Quantified Achievements"}
 
     score = max(0, min(100, score))
 

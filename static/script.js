@@ -928,102 +928,207 @@ function formatFileSize(bytes) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
-/* ─── CHAT WIDGET ─────────────────────────────────────────────────────────── */
+/* ─── BUNNY AI COMPANION ─────────────────────────────────────────────────── */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
 function initChatWidget() {
-    const chatToggle = document.getElementById('chatToggle');
-    const chatWindow = document.getElementById('chatWindow');
-    const chatClose = document.getElementById('chatClose');
-    const chatInput = document.getElementById('chatInput');
-    const chatSend = document.getElementById('chatSend');
-    const chatMessages = document.getElementById('chatMessages');
+    const launcher = document.getElementById('bunnyLauncher');
+    const panel = document.getElementById('bunnyPanel');
+    const closeBtn = document.getElementById('bunnyClose');
+    const input = document.getElementById('bunnyInput');
+    const sendBtn = document.getElementById('bunnySend');
+    const messages = document.getElementById('bunnyMessages');
+    const typingEl = document.getElementById('bunnyTyping');
+    const chipsWrap = document.getElementById('bunnyChips');
+    const avatarWrap = document.getElementById('bunnyAvatarWrap');
 
-    if (!chatToggle || !chatWindow) return;
+    if (!launcher || !panel) return;
 
-    // Toggle chat window
-    chatToggle.addEventListener('click', () => {
-        chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
-        if (chatWindow.style.display === 'flex') {
-            chatInput.focus();
+    let isOpen = false;
+
+    // ── Open / Close ─────────────────────────────────────────────────────
+    launcher.addEventListener('click', () => openBunny());
+    closeBtn.addEventListener('click', () => closeBunny());
+
+    function openBunny() {
+        isOpen = true;
+        launcher.classList.add('hidden');
+        panel.classList.remove('closing');
+        panel.classList.add('open');
+        setTimeout(() => input.focus(), 350);
+    }
+
+    function closeBunny() {
+        isOpen = false;
+        panel.classList.add('closing');
+        setTimeout(() => {
+            panel.classList.remove('open', 'closing');
+            launcher.classList.remove('hidden');
+        }, 250);
+    }
+
+    // ── Keyboard Navigation ──────────────────────────────────────────────
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
         }
+        if (e.key === 'Escape') closeBunny();
     });
 
-    chatClose.addEventListener('click', () => {
-        chatWindow.style.display = 'none';
-    });
+    sendBtn.addEventListener('click', sendMessage);
 
-    // Send message on Enter or Click
-    chatSend.addEventListener('click', sendMessage);
-    chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
-    });
-
-    // Quick actions
-    const quickActions = document.querySelectorAll('.quick-action-btn');
-    quickActions.forEach(btn => {
-        btn.addEventListener('click', () => {
-            chatInput.value = btn.dataset.query;
+    // ── Suggestion Chips ─────────────────────────────────────────────────
+    chipsWrap.querySelectorAll('.bunny-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            input.value = chip.dataset.prompt;
             sendMessage();
         });
     });
 
+    // ── Avatar Animations ────────────────────────────────────────────────
+    function triggerHop() {
+        avatarWrap.classList.remove('hop', 'blink');
+        void avatarWrap.offsetWidth; // reflow
+        avatarWrap.classList.add('hop');
+        setTimeout(() => avatarWrap.classList.remove('hop'), 500);
+    }
+
+    function triggerBlink() {
+        avatarWrap.classList.remove('hop', 'blink');
+        void avatarWrap.offsetWidth;
+        avatarWrap.classList.add('blink');
+        setTimeout(() => avatarWrap.classList.remove('blink'), 2000);
+    }
+
+    // ── Emotional Reactions ──────────────────────────────────────────────
+    function getEmotionalPrefix() {
+        try {
+            const ctx = JSON.parse(sessionStorage.getItem('analysisResults') || '{}');
+            const atsScore = ctx.ats_score?.total;
+            const missingSkills = ctx.missing_skills || [];
+
+            if (atsScore !== undefined) {
+                if (atsScore >= 75) return "Nice! Your resume looks strong 🐰 ";
+                if (atsScore < 40) return "Don't worry! We can improve this together 🐰 ";
+            }
+            if (missingSkills.length > 15) return "I noticed quite a few missing skills for your target role. ";
+        } catch (e) { /* ignore */ }
+        return "";
+    }
+
+    // ── Conversation Memory ──────────────────────────────────────────────
+    let conversationHistory = [
+        { role: 'assistant', content: "Hi! I'm Bunny 🐰\nYour AI Resume Companion.\nI can help you understand and improve your resume!" }
+    ];
+
+    // ── Send Message ─────────────────────────────────────────────────────
     async function sendMessage() {
-        const text = chatInput.value.trim();
+        const text = input.value.trim();
         if (!text) return;
 
-        // Add user message
+        // Show user message
         appendMessage('user', text);
-        chatInput.value = '';
-        chatInput.disabled = true;
-        chatSend.disabled = true;
 
-        // Add tiny loading indicator
-        const loadingId = 'loading-' + Date.now();
-        appendMessage('ai', '...', loadingId);
+        // Add user message to history
+        conversationHistory.push({ role: 'user', content: text });
+
+        input.value = '';
+        input.disabled = true;
+        sendBtn.disabled = true;
+
+        // Trigger hop on user message
+        triggerHop();
+
+        // Hide chips after first message
+        chipsWrap.style.display = 'none';
+
+        // Show typing indicator
+        typingEl.style.display = 'flex';
+        scrollToBottom();
 
         try {
             const contextData = JSON.parse(sessionStorage.getItem('analysisResults') || '{}');
 
+            // Send standard history + current message
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text, context: contextData })
+                body: JSON.stringify({
+                    message: text,
+                    context: contextData,
+                    history: conversationHistory
+                })
             });
 
             const data = await response.json();
 
-            // Remove loading
-            const loadingMsg = document.getElementById(loadingId);
-            if (loadingMsg) loadingMsg.remove();
+            // Hide typing indicator
+            typingEl.style.display = 'none';
 
             if (data.error) {
-                appendMessage('ai', 'Sorry, I encountered an error: ' + data.error);
+                // If it failed, we remove the user message from history so it's not a duplicate later
+                conversationHistory.pop();
+                appendMessage('ai', "Oops! Something went wrong 🐰 " + data.error);
             } else {
-                // simple markdown bolding replacement
-                let reply = data.response || "No response received.";
+                let reply = data.response || "I'm not sure how to answer that. Try asking about your resume!";
+
+                // Add AI response to memory
+                conversationHistory.push({ role: 'assistant', content: reply });
+
+                // Bunny personality logic
+                const prefix = getEmotionalPrefix();
+                if (conversationHistory.length === 2 && prefix && !reply.startsWith("Nice") && !reply.startsWith("Don't")) {
+                    reply = prefix + "\n\n" + reply;
+                }
+
+                // Format UI
                 reply = reply.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
                 reply = reply.replace(/\n/g, '<br>');
+                reply = reply.replace(/<br>- /g, '<br>• ');
+
                 appendMessage('ai', reply);
             }
 
+            // Trigger blink
+            triggerBlink();
+
         } catch (err) {
-            const loadingMsg = document.getElementById(loadingId);
-            if (loadingMsg) loadingMsg.remove();
-            appendMessage('ai', 'Error connecting to the server. Please check your connection.');
+            typingEl.style.display = 'none';
+            // Remove user message from history on network error too
+            conversationHistory.pop();
+            appendMessage('ai', "I'm having trouble connecting right now 🐰 Please check your connection and try again.");
         }
 
-        chatInput.disabled = false;
-        chatSend.disabled = false;
-        chatInput.focus();
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
     }
 
-    function appendMessage(sender, text, id = null) {
-        const div = document.createElement('div');
-        div.className = `chat-msg ${sender}-msg`;
-        if (id) div.id = id;
-        div.innerHTML = text; // HTML ok because we use it for formatting replies correctly
-        chatMessages.appendChild(div);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+    // ── Append Message ───────────────────────────────────────────────────
+    function appendMessage(sender, html) {
+        const wrapper = document.createElement('div');
+        wrapper.className = `bunny-msg bunny-msg-${sender} bunny-msg-enter`;
+
+        const avatar = document.createElement('div');
+        avatar.className = 'bunny-msg-avatar-mini';
+        avatar.textContent = sender === 'ai' ? '🐰' : '👤';
+
+        const bubble = document.createElement('div');
+        bubble.className = 'bunny-msg-bubble';
+        bubble.innerHTML = html;
+
+        wrapper.appendChild(avatar);
+        wrapper.appendChild(bubble);
+        messages.appendChild(wrapper);
+
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
+        requestAnimationFrame(() => {
+            messages.scrollTop = messages.scrollHeight;
+        });
     }
 }
+
